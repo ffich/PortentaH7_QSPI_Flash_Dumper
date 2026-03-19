@@ -119,6 +119,9 @@ mapped_wifi_fw_15_5MB.hex
 partitions.json
 README.txt
 ```
+Example:
+<img width="860" height="758" alt="image" src="https://github.com/user-attachments/assets/1a05f5c3-1b31-4117-9387-b5ba94e39287" />
+
 
 ---
 
