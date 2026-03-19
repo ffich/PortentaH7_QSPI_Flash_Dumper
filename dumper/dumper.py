@@ -15,7 +15,7 @@ PARTITIONS = [
     {
         "name": "part1_wifi_fat.hex",
         "key": "part1_wifi_fat",
-        "offset": 0 * 1024 * 1024,
+        "offset": 0x200,
         "size": 1 * 1024 * 1024,
         "type": "MBR partition",
         "filesystem": "FAT",
@@ -245,7 +245,98 @@ def dump_region_as_hex(ser: serial.Serial, offset: int, size: int, outfile: str)
     tail = read_tail_line(ser, max_wait=5.0)
     if tail != "RAWEND":
         raise RuntimeError(f"Invalid tail: {tail!r}")
+    
+def dump_mbr(ser):
+    print("\n=== Dumping MBR (first 512 bytes) ===")
 
+    ser.reset_input_buffer()
+    ser.write(b"r 0 512\n")
+    ser.flush()
+
+    header = read_header_line(ser)
+    parts = header.split()
+
+    size = int(parts[2])
+    if size != 512:
+        raise RuntimeError("Unexpected MBR size")
+
+    data = bytearray()
+
+    while len(data) < 512:
+        chunk = ser.read(512 - len(data))
+        if not chunk:
+            raise RuntimeError("Timeout reading MBR")
+        data.extend(chunk)
+
+    tail = read_tail_line(ser)
+    if tail != "RAWEND":
+        raise RuntimeError("Invalid RAWEND after MBR")
+
+    # Save raw
+    with open(os.path.join(OUTPUT_DIR, "mbr.bin"), "wb") as f:
+        f.write(data)
+
+    # Save hex
+    with open(os.path.join(OUTPUT_DIR, "mbr.hex"), "w") as f:
+        for i in range(0, 512, 16):
+            line = format_hex_line(i, data[i:i+16])
+            f.write(line + "\n")
+
+    return data    
+
+def parse_partition_entry(entry):
+    status = entry[0]
+    part_type = entry[4]
+    lba_start = int.from_bytes(entry[8:12], "little")
+    sectors = int.from_bytes(entry[12:16], "little")
+
+    offset = lba_start * 512
+    size = sectors * 512
+
+    return {
+        "bootable": status == 0x80,
+        "type": part_type,
+        "lba_start": lba_start,
+        "sectors": sectors,
+        "offset_bytes": offset,
+        "size_bytes": size,
+    }
+
+def decode_mbr(mbr_data):
+    print("\n=== Decoding MBR ===")
+
+    out_path = os.path.join(OUTPUT_DIR, "mbr.txt")
+
+    with open(out_path, "w") as f:
+        signature = mbr_data[510] | (mbr_data[511] << 8)
+
+        f.write("MBR Analysis\n")
+        f.write("=" * 40 + "\n\n")
+
+        f.write(f"Signature: 0x{signature:04X}\n")
+        if signature == 0xAA55:
+            f.write("Valid MBR signature\n\n")
+        else:
+            f.write("INVALID MBR signature\n\n")
+
+        f.write("Partitions:\n\n")
+
+        for i in range(4):
+            offset = 446 + i * 16
+            entry = mbr_data[offset:offset+16]
+
+            part = parse_partition_entry(entry)
+
+            f.write(f"Partition {i+1}\n")
+            f.write(f"  Bootable     : {part['bootable']}\n")
+            f.write(f"  Type         : 0x{part['type']:02X}\n")
+            f.write(f"  LBA start    : {part['lba_start']}\n")
+            f.write(f"  Sectors      : {part['sectors']}\n")
+            f.write(f"  Offset (byte): 0x{part['offset_bytes']:08X}\n")
+            f.write(f"  Size (byte)  : {part['size_bytes']}\n")
+            f.write("\n")
+
+    print(f"MBR decoded → {out_path}")
 
 def main() -> None:
     port = prompt_serial_port()
@@ -254,10 +345,14 @@ def main() -> None:
     write_partition_metadata(OUTPUT_DIR, port)
 
     print(f"\nOpening serial port {port} at {BAUD} baud...")
-    ser = serial.Serial(port, BAUD, timeout=TIMEOUT)
+    ser = serial.Serial(port, BAUD, timeout=TIMEOUT)  
 
     try:
         wait_for_device_boot(ser, seconds=4.0)
+        
+        # Dump and decode MBR first
+        mbr_data = dump_mbr(ser)
+        decode_mbr(mbr_data)          
 
         for p in PARTITIONS:
             outfile = os.path.join(OUTPUT_DIR, p["name"])
