@@ -1,10 +1,7 @@
-# PortentaH7_QSPI_Flash_Dumper
+# Portenta H7 QSPI Flash Dumper
 A simple skecth + Python script for making dumps of the Portenta H7 QSPIO Flash.
 
-# Portenta H7 QSPI Flash Dumper
-
 ## Overview
-
 This project provides a complete toolchain to **dump and analyze the external QSPI flash memory** of the **Arduino Portenta H7**.
 
 It consists of:
@@ -15,8 +12,7 @@ It consists of:
 
 The goal is to enable:
 
-* Reverse engineering
-* Firmware inspection
+* QSPI Flash inspection
 * Data recovery
 * Debugging of OTA / filesystem issues
 
@@ -29,7 +25,6 @@ The goal is to enable:
 * Output in **human-readable hex format**
 * One file per partition
 * Automatic generation of:
-
   * `partitions.json` (machine-readable layout)
   * `README.txt` (human-readable summary)
 * Robust serial communication handling (boot delays, noise filtering)
@@ -47,16 +42,6 @@ The partition scheme follows the official Arduino example:
 7 MB   → 14 MB   : Partition 4 (User data, LittleFS or FAT)
 15.5 MB → ~16 MB : Memory-mapped WiFi firmware
 ```
-
-### Important Notes
-
-* The first four regions are **MBR partitions**
-* The WiFi firmware is stored twice:
-
-  * As a file (`4343WA1.BIN`) in Partition 1
-  * As a **raw memory-mapped blob** at offset `15.5 MB`
-* There is an unused gap between `14 MB` and `15.5 MB`
-
 ---
 
 ## Requirements
@@ -109,7 +94,7 @@ python dump_qspi.py
 You will be prompted to enter the serial port:
 
 ```
-Serial port: COM48
+Serial port: COMXX (enter your serial port number)
 ```
 
 ---
@@ -169,18 +154,6 @@ This makes it easy to:
 * CRC / integrity checks
 * Binary + HEX dual output
 * Integration with reverse engineering tools (e.g., Ghidra)
-
----
-
-## License
-
-MIT License (or your preferred license)
-
----
-
-## Author
-
-Your Name / Handle
 
 ---
 
